@@ -7,10 +7,10 @@
 struct particle
 {
 	glm::vec2 position;
-	glm::vec2 speed;
+	glm::vec2 speed = glm::vec2(0.0);
 
-	float volume;
-	float sediment_fraction;
+	float volume = 1.0;
+	float sediment_fraction = 0.0;
 };
 
 
@@ -31,6 +31,12 @@ private:
 
 	// to get the surface normal from the model
 	glm::vec3 surface_normal(int i, int j);
+
+	//wrap particle position if out-of-bounds
+	void particle_wrap(particle &p);
+
+	// height accessor
+	float height(int i, int j);
 		
 	// initialization
 	void generate_heightmap_diamond_square();

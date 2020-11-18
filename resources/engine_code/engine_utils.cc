@@ -282,27 +282,90 @@ void engine::send_model_to_GPU()
             image_data.push_back(static_cast<unsigned char>(model[x][y]*255));
             image_data.push_back(static_cast<unsigned char>(model[x][y]*255));
             image_data.push_back(static_cast<unsigned char>(model[x][y]*255));
+            // image_data.push_back(static_cast<unsigned char>(surface_normal(x,y).x*255));
+            // image_data.push_back(static_cast<unsigned char>(surface_normal(x,y).y*255));
+            // image_data.push_back(static_cast<unsigned char>(surface_normal(x,y).z*255));
             image_data.push_back(255);
         }
     }
 
+    // cout << "image size " << image_data.size() << " theoretical size " << DIM*DIM*4 << endl;  
+    
     // buffer the image data to the GPU
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_RECTANGLE, display_texture);
-    glTexImage2D(GL_TEXTURE_RECTANGLE, 0, GL_RGBA8UI, WIDTH, HEIGHT, 0, GL_RGBA_INTEGER, GL_UNSIGNED_BYTE, &image_data[0]);
+    glTexImage2D(GL_TEXTURE_RECTANGLE, 0, GL_RGBA8UI, DIM, DIM, 0, GL_RGBA_INTEGER, GL_UNSIGNED_BYTE, &image_data[0]);
     glBindImageTexture(0, display_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA8UI);
 }
 
 glm::vec3 engine::surface_normal(int i, int j)
 {
-    glm::vec3 temp = glm::vec3(0.0);
+    float scale = 60.0;
+    
+    glm::vec3 n = glm::vec3(0.15) * glm::normalize(glm::vec3(scale*(model[i][j]-model[i+1][j]), 1.0, 0.0));   // Positive X
+    n += glm::vec3(0.15) * glm::normalize(glm::vec3(scale*(model[i-1][j]-model[i][j]), 1.0, 0.0));           // Negative X
+    n += glm::vec3(0.15) * glm::normalize(glm::vec3(0.0, 1.0, scale*(model[i][j]-model[i][j+1])));          // Positive Y
+    n += glm::vec3(0.15) * glm::normalize(glm::vec3(0.0, 1.0, scale*(model[i][j-1]-model[i][j])));         // Negative Y
 
-    return temp; 
+    // diagonals 
+    n += glm::vec3(0.1) * glm::normalize(glm::vec3(scale*(model[i][j]-model[i+1][j+1])/sqrt(2), sqrt(2), scale*(model[i][j]-model[i+1][j+1])/sqrt(2)));
+    n += glm::vec3(0.1) * glm::normalize(glm::vec3(scale*(model[i][j]-model[i+1][j-1])/sqrt(2), sqrt(2), scale*(model[i][j]-model[i+1][j-1])/sqrt(2)));
+    n += glm::vec3(0.1) * glm::normalize(glm::vec3(scale*(model[i][j]-model[i-1][j+1])/sqrt(2), sqrt(2), scale*(model[i][j]-model[i-1][j+1])/sqrt(2)));
+    n += glm::vec3(0.1) * glm::normalize(glm::vec3(scale*(model[i][j]-model[i-1][j-1])/sqrt(2), sqrt(2), scale*(model[i][j]-model[i-1][j-1])/sqrt(2)));
+
+    return n;
 }
 
 void engine::erode(int steps)
 {
-   // run the simulation for the specified number of steps 
+    std::default_random_engine gen;
+    std::uniform_int_distribution<int> dist(0,DIM);
+    
+    // run the simulation for the specified number of steps
+    for(int i = 0; i < steps; i++)
+    {
+        //spawn a new particle at a random position
+        particle p;
+        p.position = glm::vec2(dist(gen), dist(gen));
+        
+        //while the droplet exists (drop volume > 0)
+        while(p.volume > 0)
+        {
+            glm::ivec2 initial_position = p.position;    // cache the initial position
+            glm::vec3 normal = surface_normal(initial_position.x, initial_position.y);
+
+            // newton's second law to calculate acceleration
+            p.speed += dt*glm::vec2(normal.x, normal.z)/(p.volume*density); // F = MA, A = F/M
+
+            // update position based on new speed
+            p.position += dt*p.speed;
+            
+            // friction factor to attenuate speed
+            p.speed *= (1.0-dt*friction);
+
+            // // wrap if out of bounds (mod logic)
+            // particle_wrap(p);
+            // if(glm::any(glm::isnan(p.position)))
+            //     break;
+
+            // thought I was clever, just discard if out of bounds
+            if(!glm::all(glm::greaterThanEqual(p.position, glm::vec2(0))) ||
+               !glm::all(glm::lessThan(p.position, glm::vec2(DIM)))) break; 
+
+            // sediment capacity
+            glm::ivec2 ref = glm::ivec2(p.position.x, p.position.y);
+            float max_sediment = p.volume*glm::length(p.speed)*(model[initial_position.x][initial_position.y]-model[ref.x][ref.y]);
+            max_sediment = std::max(max_sediment, 0.0f); // don't want negative values here
+            float sediment_diff = max_sediment - p.sediment_fraction;
+            
+            // update sediment content, deposit on the heightmap
+            p.sediment_fraction += dt*deposition_rate*sediment_diff;
+            model[initial_position.x][initial_position.y] -= dt*p.volume*deposition_rate*sediment_diff;
+            
+            // evaporate the droplet
+            p.volume *= (1.0-dt*evaporation_rate);
+        }
+    }
 }
 
 static void HelpMarker(const char* desc)
@@ -327,8 +390,13 @@ void engine::draw_everything()
     glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);   // from hsv picker
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);                     // clear the background
 
-    // draw the stuff on the GPU
 
+    // update the model
+    erode(5000);
+    
+    // buffer resulting image to GPU
+    send_model_to_GPU();
+    
     // texture display
     glUseProgram(display_shader);
     glBindVertexArray( display_vao );

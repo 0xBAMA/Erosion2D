@@ -80,10 +80,15 @@ using std::endl;
 using json = nlohmann::json;
 
 
-#define WIDTH  1024
-#define HEIGHT 1024
+#define WIDTH  512
+#define HEIGHT 512
 
-#define DIM 1024
+#define DIM 512
+
+// #define WIDTH  1024
+// #define HEIGHT 1024
+
+// #define DIM 1024
 
 
 #endif
