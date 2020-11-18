@@ -79,9 +79,10 @@ using std::endl;
 #include "../nlohmann_JSON/json.hpp"
 using json = nlohmann::json;
 
+// #define TILE
 
-#define WIDTH  512
-#define HEIGHT 512
+#define WIDTH  1024
+#define HEIGHT 1024
 
 #define DIM 512
 

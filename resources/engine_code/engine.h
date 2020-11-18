@@ -35,14 +35,14 @@ private:
 	//wrap particle position if out-of-bounds
 	void particle_wrap(particle &p);
 
-	// height accessor
-	float height(int i, int j);
-		
 	// initialization
 	void generate_heightmap_diamond_square();
 
 	// buffer image data to GPU
 	void send_model_to_GPU();
+
+	// image output
+	void dump_model(std::string filename);
 
 	// simulation parameters
 	float dt = 1.2; // timestep

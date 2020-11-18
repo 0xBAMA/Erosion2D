@@ -225,8 +225,8 @@ void engine::gl_setup()
     // generate a heightmap to work with
     generate_heightmap_diamond_square();
 
-    // compute shaders, etc...
-
+    // dump model to image
+    dump_model("initial.png");
 }
 
 void engine::generate_heightmap_diamond_square()
@@ -235,17 +235,24 @@ void engine::generate_heightmap_diamond_square()
 
     std::default_random_engine engine{seed};
     std::uniform_real_distribution<float> distribution{0, 1};
-
-    // constexpr auto size = DIM + 1; // for no_wrap
+    
+#ifdef TILE
     constexpr auto size = DIM;
+#else
+    constexpr auto size = DIM + 1; // for no_wrap
+#endif
+
     constexpr auto edge = size - 1;
 
     uint16_t map[size][size] = {{0}};
     map[0][0] = map[edge][0] = map[0][edge] = map[edge][edge] = std::numeric_limits<uint16_t>::max()/2;
 
-    // heightfield::diamond_square_no_wrap(
-    heightfield::diamond_square_wrap(
-        size,
+#ifdef TILE
+    heightfield::diamond_square_wrap
+#else
+    heightfield::diamond_square_no_wrap
+#endif
+        (size,
         // random
         [&engine, &distribution](float range)
         {
@@ -254,7 +261,8 @@ void engine::generate_heightmap_diamond_square()
         // variance
         [](int level) -> float
         {
-            return static_cast<float>(std::numeric_limits<uint16_t>::max()/1.6) * std::pow(0.5f, level);
+            return static_cast<float>(std::numeric_limits<uint16_t>::max()/2) * std::pow(0.5f, level);
+            // return static_cast<float>(std::numeric_limits<uint16_t>::max()/1.6) * std::pow(0.5f, level);
         },
         // at
         [&map](int x, int y) -> uint16_t&
@@ -289,14 +297,37 @@ void engine::send_model_to_GPU()
         }
     }
 
-    // cout << "image size " << image_data.size() << " theoretical size " << DIM*DIM*4 << endl;  
-    
     // buffer the image data to the GPU
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_RECTANGLE, display_texture);
     glTexImage2D(GL_TEXTURE_RECTANGLE, 0, GL_RGBA8UI, DIM, DIM, 0, GL_RGBA_INTEGER, GL_UNSIGNED_BYTE, &image_data[0]);
     glBindImageTexture(0, display_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA8UI);
 }
+
+
+void engine::dump_model(std::string filename)
+{
+    std::vector<unsigned char> image_data;
+    
+    for(int x = 0; x < DIM; x++)
+    {
+        for(int y = 0; y < DIM; y++)
+        {
+            image_data.push_back(static_cast<unsigned char>(model[x][y]*255));
+            image_data.push_back(static_cast<unsigned char>(model[x][y]*255));
+            image_data.push_back(static_cast<unsigned char>(model[x][y]*255));
+            // image_data.push_back(static_cast<unsigned char>(surface_normal(x,y).x*255));
+            // image_data.push_back(static_cast<unsigned char>(surface_normal(x,y).y*255));
+            // image_data.push_back(static_cast<unsigned char>(surface_normal(x,y).z*255));
+            image_data.push_back(255);
+        }
+    }
+    
+    unsigned error = lodepng::encode(filename.c_str(), image_data, DIM, DIM);
+    if(error) std::cout << "encode error during save(\" "+ filename +" \") " << error << ": " << lodepng_error_text(error) << std::endl; 
+}
+
+
 
 glm::vec3 engine::surface_normal(int i, int j)
 {
@@ -451,15 +482,18 @@ void engine::draw_everything()
 
 void engine::quit()
 {
-  //shutdown everything
-  ImGui_ImplOpenGL3_Shutdown();
-  ImGui_ImplSDL2_Shutdown();
-  ImGui::DestroyContext();
+    // dump model to image
+    dump_model("eroded.png");
 
-  //destroy window
-  SDL_GL_DeleteContext(GLcontext);
-  SDL_DestroyWindow(window);
-  SDL_Quit();
+    //shutdown everything
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplSDL2_Shutdown();
+    ImGui::DestroyContext();
 
-  cout << "goodbye." << endl;
+    //destroy window
+    SDL_GL_DeleteContext(GLcontext);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
+
+    cout << "goodbye." << endl;
 }
