@@ -33,8 +33,8 @@ void engine::create_window()
 
     // pulling these out because I'm going to try to span the whole screen with
     // the window, in a way that's flexible on different resolution screens
-    int total_screen_width = dm.w;
-    int total_screen_height = dm.h;
+    // int total_screen_width = dm.w;
+    // int total_screen_height = dm.h;
 
     cout << "creating window...";
 
@@ -236,13 +236,15 @@ void engine::generate_heightmap_diamond_square()
     std::default_random_engine engine{seed};
     std::uniform_real_distribution<float> distribution{0, 1};
 
-    constexpr auto size = DIM + 1;
+    // constexpr auto size = DIM + 1; // for no_wrap
+    constexpr auto size = DIM;
     constexpr auto edge = size - 1;
 
-    uint8_t map[size][size] = {{0}};
-    map[0][0] = map[edge][0] = map[0][edge] = map[edge][edge] = 128;
+    uint16_t map[size][size] = {{0}};
+    map[0][0] = map[edge][0] = map[0][edge] = map[edge][edge] = std::numeric_limits<uint16_t>::max()/2;
 
-    heightfield::diamond_square_no_wrap(
+    // heightfield::diamond_square_no_wrap(
+    heightfield::diamond_square_wrap(
         size,
         // random
         [&engine, &distribution](float range)
@@ -252,24 +254,36 @@ void engine::generate_heightmap_diamond_square()
         // variance
         [](int level) -> float
         {
-            return 64.0f * std::pow(0.5f, level);
+            return static_cast<float>(std::numeric_limits<uint16_t>::max()/1.6) * std::pow(0.5f, level);
         },
         // at
-        [&map](int x, int y) -> uint8_t&
+        [&map](int x, int y) -> uint16_t&
         {
             return map[y][x];
         }
     );
 
+    for(int x = 0; x < DIM; x++)
+        for(int y = 0; y < DIM; y++)
+            model[x][y] = map[x][y]/static_cast<float>(std::numeric_limits<uint16_t>::max());
+
+    send_model_to_GPU();
+}
+
+
+
+
+void engine::send_model_to_GPU()
+{
     image_data.resize(0);
     
     for(int x = 0; x < DIM; x++)
     {
         for(int y = 0; y < DIM; y++)
         {
-            image_data.push_back(map[x][y]);
-            image_data.push_back(map[x][y]);
-            image_data.push_back(map[x][y]);
+            image_data.push_back(static_cast<unsigned char>(model[x][y]*255));
+            image_data.push_back(static_cast<unsigned char>(model[x][y]*255));
+            image_data.push_back(static_cast<unsigned char>(model[x][y]*255));
             image_data.push_back(255);
         }
     }
@@ -279,9 +293,8 @@ void engine::generate_heightmap_diamond_square()
     glBindTexture(GL_TEXTURE_RECTANGLE, display_texture);
     glTexImage2D(GL_TEXTURE_RECTANGLE, 0, GL_RGBA8UI, WIDTH, HEIGHT, 0, GL_RGBA_INTEGER, GL_UNSIGNED_BYTE, &image_data[0]);
     glBindImageTexture(0, display_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA8UI);
-
 }
-
+    
 static void HelpMarker(const char* desc)
 {
     ImGui::TextDisabled("(?)");
@@ -328,13 +341,8 @@ void engine::draw_everything()
     ImGui::SetNextWindowSize(ImVec2(256,385));
     ImGui::Begin("Controls", NULL, 0);
 
-
-
     //do the other widgets
     HelpMarker("shut up, compiler");
-
-
-
 
 
     ImGui::End();

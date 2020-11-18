@@ -12,11 +12,12 @@ public:
 
 private:
 
+	float model[DIM][DIM] = {{0.}};
+		
 	SDL_Window * window;
 	SDL_GLContext GLcontext;
 
 	ImVec4 clear_color;
-
 
 	GLuint display_texture;
 	GLuint display_shader;
@@ -30,6 +31,7 @@ private:
 	void draw_everything();
 
 	void generate_heightmap_diamond_square();
+	void send_model_to_GPU();
 		
 	void quit();
 
