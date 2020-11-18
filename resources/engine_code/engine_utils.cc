@@ -270,12 +270,10 @@ void engine::generate_heightmap_diamond_square()
     send_model_to_GPU();
 }
 
-
-
-
 void engine::send_model_to_GPU()
 {
-    image_data.resize(0);
+    // image_data.resize(0);
+    std::vector<unsigned char> image_data;
     
     for(int x = 0; x < DIM; x++)
     {
@@ -294,7 +292,19 @@ void engine::send_model_to_GPU()
     glTexImage2D(GL_TEXTURE_RECTANGLE, 0, GL_RGBA8UI, WIDTH, HEIGHT, 0, GL_RGBA_INTEGER, GL_UNSIGNED_BYTE, &image_data[0]);
     glBindImageTexture(0, display_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA8UI);
 }
-    
+
+glm::vec3 engine::surface_normal(int i, int j)
+{
+    glm::vec3 temp = glm::vec3(0.0);
+
+    return temp; 
+}
+
+void engine::erode(int steps)
+{
+   // run the simulation for the specified number of steps 
+}
+
 static void HelpMarker(const char* desc)
 {
     ImGui::TextDisabled("(?)");
